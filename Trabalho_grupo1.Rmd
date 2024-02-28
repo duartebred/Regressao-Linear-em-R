@@ -1,0 +1,377 @@
+---
+title: "Anemia"
+output:
+  html_document: default
+  pdf_document: default
+---
+<style>
+  p {
+    text-align: justify;
+  }
+</style>
+
+
+```{r, include=FALSE}
+library(readxl)
+dataset_anemia <- read_excel("dataset_anemia.xlsx")
+library(knitr)
+options(repos = c(CRAN = "https://cran.rstudio.com/"))
+```
+
+## **Enquadramento**
+
+Este trabalho, desenvolvido no âmbito da unidade curricular “Métodos Estatísticos para a Bioinformática”, terá como referência o conjunto de dados “Anemia Diagnosis Dataset”, extraído da base de dados kaggle.
+
+Segundo a Organização Mundial da Saúde, a anemia é uma condição caraterizada pela diminuição do número de glóbulos vermelhos ou da concentração de hemoglobina no sangue (World Health Organization,2022).
+O hemograma é um exame que, por meio de colheita de amostra sanguínea, avalia o número e a morfologia de células do sangue, sendo um exame laboratorial fundamental para o diagnóstico da anemia. 
+
+O conjunto de dados disponibilizado (dataset_anemia.xlsx) é utilizado para diagnosticar a prevalência de diferentes tipos de anemia, incluindo a sua severidade, com base em parâmetros de entrada como o sexo, a idade e vários valores resultantes de um hemograma realizado a 364 pacientes. Deste estudo foram excluídos lactentes, crianças com menos de 10 anos e grávidas.
+
+De acordo com a teoria, níveis de RBC e/ou PCV menores levarão a níveis de HGB menores. Também um RDW alto no hemograma pode indicar anemia. Através dos conteúdos abordados nas aulas, iremos abordar a relação entre as variáveis em estudo, tentando construir um modelo de regressão linear que se ajuste aos nossos dados e que nos permita tirar informações no que diz respeito aos valores de um hemograma que podem estar alterados quando estamos perante valores de hemoglobina indicativos de anemia. 
+
+Assim, a nossa variável dependente será o nível de hemoglobina no sangue (HGB), e as variáveis independentes selecionadas serão: a idade (Age), o sexo (Sex), os níveis de glóbulos vermelhos no sangue (RBC), o volume de glóbulos vermelhos no sangue (PCV), o volume celular médio (MCV), a hemoglobina celular média (MCH), a distribuição do tamanho dos glóbulos vermelhos (RDW) e a contagem de glóbulos brancos (TLC).
+
+
+## **Base de dados**
+“Anemia Diagnosis Dataset” (disponível em https://encr.pw/Rxu0N).
+Dada a extensão do data frame, para ilustração, apenas estão a ser exibidas as primeiras dez linhas.
+```{r, echo = FALSE}
+  #dataset com as variáveis para estudo;
+  #para garantir que eliminamos os NA existentes
+  remover= c("S. No.","MCHC","PLT /mm3")
+  dataset_anemia <- dataset_anemia[, -which(names(dataset_anemia) %in% remover)]
+  dataset_anemia=na.omit(dataset_anemia)
+  
+  #fixar elementos do data.frame
+  attach(dataset_anemia)
+```
+
+
+```{r, echo = FALSE}
+  kable(head(dataset_anemia, 10))
+```
+
+
+## **Dicionário de dados**
+
+-  **HGB (Hemoglobin)**: Níveis de hemoglobina (g/dL).\
+-  **Age**: idade do paciente.\
+-  **Sex**: sexo (0-masculino, 1-feminino).
+-  **RBC** (Red blood cell count): níveis de glóbulos vermelhos (g/dL).
+-  **PCV (Packed cell volume)**: volume de glóbulos vermelhos no sangue (%).
+-  **MCV (Mean Cell Volume)**: volume celular médio (fL/glóbulo vermelho).
+-  **MCH (Mean Cell Hemoglobin)**: Hemoglobina celular media (pg).
+-  **RDW (Red cell distribution width)**: Distribuição do tamanho dos glóbulos vermelhos (%).
+-  **TLC (Total Leucocyte Count- White Blood Cell count)**: Contagem de Glóbulos Brancos (ths/uL).
+
+
+```{r, include=FALSE}
+  #determinar as.factor
+  Sex<-as.factor(Sex)
+  levels(Sex)<-c("Masculino","Feminino")
+  
+  #determinar variáveis definidas como carater em numéricas
+  RBC<-as.numeric(RBC)
+  PCV<-as.numeric(PCV)
+  MCV<-as.numeric(MCV)
+  MCH<-as.numeric(MCH)
+  RDW<-as.numeric(RDW)
+  TLC<-as.numeric(TLC)
+  HGB<-as.numeric(HGB)
+  
+  #reclassificar as variáveis como numéricas no data.frame original
+  dataset_anemia$RBC <- RBC
+  dataset_anemia$PCV <- PCV
+  dataset_anemia$MCV <- MCV
+  dataset_anemia$MCH <- MCH
+  dataset_anemia$RDW <- RDW
+  dataset_anemia$TLC <- TLC
+  dataset_anemia$HGB <- HGB
+```
+
+## **Análise Exploratória das variáveis quantitativas, histogramas e boxplot**
+
+As variáveis selecionadas da nossa base de dados podem ser classificadas em quantitativas proporcionais contínuas (HGB, Age, RBC, PCV, MCV, MCH, RDW) e em quantitativas proporcionais discretas (TLC).
+
+### Mínimo, 1ºquartil, mediana, média, 3ºquartil, máximo
+```{r, echo = FALSE}
+  quant_expl<-summary(dataset_anemia)
+  quant_expl
+```
+### Desvios-padrão
+````{r, include = FALSE}
+library(formattable)
+
+  tabela1 <- data.frame(
+  id = 1:8, 
+  Nome = c("Age", "RBC", "PCV","MCV", "MCH","RDW","TLC","HGB"),
+  Sd=accounting(c(18.78085,0.8201663,6.830835,9.332164,3.865998,2.176557,4.868502,2.186686)))
+```
+
+```{r, echo=FALSE}
+formattable(tabela1, list(
+  id = color_tile("blue", "grey")))
+```
+
+```{r, echo = FALSE}
+  hist(Age, probability = TRUE, col=0, main="Idade dos participantes", ylab="Freq.Relativas", xlab="Anos") 
+  boxplot(Age, col =0)
+```
+
+Relativamente à variável "Idade" verificamos que não existem outliers, a idade mínima registada foram 11 anos e a idade máxima 89 anos.
+
+```{r, echo = FALSE}
+  hist(RBC, probability = TRUE, col=1, main="Red Blood Cell Count", ylab="Freq.Relativas", xlab="g/dL") 
+  boxplot(RBC, col =1)
+```
+
+Relativamente à variável "Red Blood Cell Count" destacamos a presença de outliers. 
+
+```{r, echo = FALSE}
+  hist(PCV, probability = TRUE, col=2, main="Packed Cell Volume", ylab="Freq.Relativas", xlab="%") 
+  boxplot(PCV, col =2)
+```
+
+Relativamente à variàvel "Packed Cell Volume" registamos a presença de outliers.
+
+```{r, echo = FALSE}
+  hist(MCV, probability = TRUE, col="blue",main="Mean Cell Volume", ylab="Freq.Relativas", xlab="fL/red blood cell") 
+  boxplot(MCV, col ="blue")
+```
+
+Relativamente à variàvel "Mean Cell Volume" registamos a presença de muitos outliers.
+
+```{r, echo = FALSE}
+  hist(MCH, probability = TRUE, col="grey", main="Mean Cell Hemoglobin", ylab="Freq.Relativas", xlab="pg/red blood cell") 
+  boxplot(MCH, col ="grey")
+```
+
+Relativamente à variàvel "Mean Cell Hemoglobin" registamos a presença de muitos outliers.
+
+```{r, echo = FALSE}
+  hist(HGB, probability = TRUE, col="orange", main="Hemoglobin", ylab="Freq.Relativas", xlab="g/dL") 
+  boxplot(HGB, col ="orange")
+```
+
+Relativamente à variàvel dependente "Hemoglobin" registamos a presença de alguns outliers.
+
+```{r, echo = FALSE}
+  hist(RDW, probability = TRUE, col="yellow", main="Red Cell Distribution Width", ylab="Freq.Relativas", xlab="%") 
+  boxplot(RDW, col ="yellow")
+```
+
+Relativamente à variável "Red Cell Distribution Width" verificamos que há uma assimetria à direita na distribuição dos valores, havendo também presença de outliers.
+
+```{r, echo = FALSE}
+  hist(TLC, probability = TRUE, col=10, main="Total Leucocyte Count", ylab="Freq.Relativas", xlab="ths/uL") 
+  boxplot(TLC, col =10)
+```
+
+Relativamente à variável "Total Leucocyte Count" verificamos que há uma assimetria à direita na distribuição dos valores, havendo também presença de outliers.
+
+## **Análise Exploratória das variáveis qualitativas e gráfico de barras**
+Sex- variável qualitativa nominal.
+
+```{r, echo = FALSE}
+  sexo=table(Sex)
+  barplot(sexo, names.arg = c("Masculino","Feminino"), col="blue" , main="Sexo")
+```
+
+Do total de participantes, 203 eram do sexo masculino e 161 do sexo feminino.
+
+## **Matriz de correlação entre as variáveis quantitativas**
+```{r, include=FALSE}
+install.packages("tidyverse")
+  install.packages("caret")
+  install.packages("leaps")
+  library(tidyverse)
+  library(caret)
+  library(leaps)
+  library(MASS)
+  
+  install.packages("corrplot")
+  library(corrplot)
+```
+
+
+```{r, echo=FALSE}
+  dataset_anemia_quant=dataset_anemia[,-2]  #exclui a variável nominal "Sex"
+  cores=c("red","grey","blue")
+  matriz=cor(dataset_anemia_quant)       
+  corrplot(matriz, method="circle", type="upper", col = cores)
+  corrplot(matriz, method="number", type="lower", col = cores, number.cex = 0.8)
+```
+
+Através do gráfico de correlação, podemos concluir que existem correlações relevantes entre as variáveis em estudo, positivamente: PCV com RBC; MCH com MCV; HGB com RBC ; HGB com PCV e negativamente: RBC com MCV ; RBC com MCH ; RDW com HGB.
+
+## **Construção de um modelo de regressão linear múltiplo**
+
+**Nota:**para todos os testes estatísticos abaixo realizados, considere-se um valor de prova igual a 0.05.
+
+### Modelo com a todas as variáveis disponíveis
+
+```{r, echo = FALSE}
+    modelo_comp= lm(dataset_anemia$HGB ~., data=dataset_anemia)
+    summary(modelo_comp)
+```
+    H0: o modelo não é estatísticamente significativo.
+    H1: o modelo é estatísticamente significativo.
+    
+  Podemos verificar uma estatística de teste F(8,355)=799.1 e um valor de prova < 2.2e-16, logo rejeitamos H0 e o modelo é estatísticamente significativo, ou seja, pelo menos uma variável preditiva está relacionada com a variável resposta.
+    Olhando para a tabela dos coeficientes, podemos dizer que apenas as variáveis "Age", "Sex" e "TLC" não são significativas para o modelo.
+    Por último, verificamos também um valor de $R^2$ ajustado de 0.9462, o que representa um ótimo valor, significando que cerca de 95% da variabilidade dependente pode ser explicada por este modelo.
+
+### Modelo de regressão utilizando as técnicas de stepwise
+#### **Both**
+```{r, echo = FALSE}
+  modelo_b=step(modelo_comp, direction = "both")
+  summary(modelo_b)
+```
+    H0: o modelo_b não é estatísticamente significativo.
+    H1: o modelo_b é estatísticamente significativo.
+    
+  Podemos verificar uma estatística de teste F(6,357)=1071 e um valor de prova < 2.2e-16, logo rejeitamos H0 e o modelo_b é estatísticamente significativo, ou seja, pelo menos uma variável preditiva está relacionada com a variável resposta.
+    Olhando para a tabela dos coeficientes, verificamos que foram removidas as variáveis "Age" e "Sex", mantendo-se a variável "TLC" que não é significativas para o modelo.
+    Por último, verificamos também um valor de $R^2$ ajustado de 0.9465, o que representa um ótimo valor, significando que cerca de 95% da variabilidade dependente pode ser explicada por este modelo_b.
+
+
+#### **Backward**
+```{r, echo = FALSE}
+  modelo_back=step(modelo_comp, direction = "backward")
+  summary(modelo_back)
+```
+    H0: o modelo_back não é estatísticamente significativo.
+    H1: o modelo_back é estatísticamente significativo.
+    
+  Podemos verificar uma estatística de teste F(6,357)=1071 e um valor de prova < 2.2e-16, logo rejeitamos H0 e o modelo_back é estatísticamente significativo, ou seja, pelo menos uma variável preditiva está relacionada com a variável resposta.
+    Olhando para a tabela dos coeficientes, verificamos que foram removidas novamente as variáveis "Age" e "Sex", mantendo-se a variável "TLC" que não é significativas para o modelo.
+    Por último, verificamos também um valor de $R^2$ ajustado de 0.9465, o que representa um ótimo valor, significando que cerca de 95% da variabilidade dependente pode ser explicada por este modelo_b.
+
+#### **Forward**
+```{r, echo = FALSE}
+  modelo_for=step(modelo_comp, direction = "forward")
+  summary(modelo_for)
+```
+    H0: o modelo_for não é estatísticamente significativo.
+    H1: o modelo_for é estatísticamente significativo.
+
+  Podemos verificar uma estatística de teste F(8,355)=799.1 e um valor de prova < 2.2e-16, logo rejeitamos H0 e o modelo_for é estatísticamente significativo, ou seja, pelo menos uma variável preditiva está relacionada com a variável resposta.
+    Olhando para a tabela dos coeficientes, verificamos que foram mantidas as variáveis "Age", "Sex" e "TLC" que não são significativas para o modelo.
+    Por último, verificamos também um valor de $R^2$ ajustado de 0.9462, o que representa um ótimo valor, significando que cerca de 95% da variabilidade dependente pode ser explicada por este modelo_b.
+
+#### Avaliação dos vários modelos 
+```{r, echo = FALSE}
+escolher_mod=anova(modelo_comp,modelo_b,modelo_back, modelo_for)
+escolher_mod
+```
+   
+  Ao compararmos os valores de RSS (Residual Sum of Squares), medida que quantifica a variação não explicada pelo modelo de regressão (diferenças entre os valores observados e os previstos pelo modelo), verificamos que o modelo_comp e o modelo_for possuem os menores valores de RSS, ou seja, serão os modelos melhor ajustados.
+    No entanto, todos os valores estão muito próximos. Métricas como o AIC e o BIC fornecem uma visão mais completa da capacidade explicativa do modelo e consideram a complexidade do modelo.
+    
+```{r, echo = FALSE}
+AIC(modelo_comp,modelo_b,modelo_back,modelo_for)
+  
+BIC(modelo_comp, modelo_b,modelo_back,modelo_for)
+```
+   
+   Observamos que os modelos com valores mais baixos de AIC(Critério de Informação de Akaike) e de BIC(Critério de Informação Bayesiano) são o modelo_b e o modelo_back. Ou seja, serão modelos equilibrados em termos qualidade de ajuste e complexidade.
+  
+   **Conclusão**
+    Entre os modelos testados, o modelo_b e o modelo_back têm os menores valores de AIC/BIC e o mesmo valor de $R^2$, ou seja, ambos são modelos com um bom ajuste. Iremos prosseguir com o modelo_b (modelo derivado da técnica stepwise-both).
+
+## **Avaliação do modelo adotado**
+### Análise dos valores de prova dos coeficientes
+    H0:a regressão linear não é significativa entre HGB e a variável independente.
+    H0:a regressão linear é significativa entre HBG e a variável independente.
+    
+  De acordo com o valor de prova definido (α=5%), apenas a relação entre HGB-TLC não é estatisticamente significativa (Pr(>|t|)=0.06448).
+   
+### Significância estatística do modelo
+    H0:o modelo não é estatisticamente significativo.
+    H1:o modelo é estatisticamente significativo.
+    
+  De acordo com o valor de prova definido (α=5%), existe evidência estatística para rejeitar a hipótese nula e por isso o modelo é estatisticamente significativo (p-value< 2.2e-16).
+  
+  
+  
+### Análise do coeficiente de determinação
+  
+ Através da analise do valor de $R^2$ (0.9465), verificamos que cerca de 95% da variabilidade dependente pode ser explicada por este modelo_b, ou seja, o modelo é bem ajustado.
+    
+## Análise dos gráficos dos resíduos
+```{r, echo = FALSE}
+  par(mfrow=c(2,2))    #para colocar os 4 gráficos no output
+  plot(modelo_b)
+```
+
+### Linearidade
+  
+  No primeiro gráfico podemos observar que a linha vermelha aproxima-se da horizontalidade, havendo uma grande concentração da maioria dos dados em volta de zero, ou seja, aceitamos a existência de linearidade.
+    
+### Normalidade
+    H0:os resíduos são normais.
+    H1:os resíduos não são normais.
+    
+```{r, echo = TRUE}
+  norm_res=shapiro.test(modelo_b$residuals)
+  norm_res
+```
+
+
+```{r, echo = FALSE}
+  if (norm_res$p.value > 0.05) cat ("Aceito H0, os resíduos são normais.") else cat ("Rejeito H0, os resíduos não são normais.")
+```
+  
+  Através da análise do Q-Q Plot, verificamos que os pontos estão, na sua maioria, sobrepostos à linha diagonal. Apenas as extremidades se afastam abaixo e acima da diagonal. No entanto, sabemos que temos um grande volume de dados (n=364), e que, de acordo com o teorema do limite central, podemos aceitar a normalidade dos resíduos apesar de o valor de p-value do teste de shapiro nos levar a rejeitar a hipótese nula. 
+  
+### Média
+    H0:os resíduos têm média zero.
+    H1:os resíduos não têm média zero.
+```{r, echo=TRUE}
+  media_res=t.test(modelo_b$residuals)
+  media_res
+```
+```{r,echo=FALSE}
+  if (media_res $p.value > 0.05) cat ("Não existe evidência estatística para rejeitar H0, os resíduos têm média zero.") else cat ("Rejeito H0, os resíduos não têm média zero.")
+```
+
+### Homocedasticidade
+```{r, include=FALSE}
+  library(lmtest)
+```
+    H0:A variabilidade dos resíduos é constante em todas as faixas dos valores ajustados (homocedasticidade).
+    H1:A variabilidade dos resíduos não é constante em todas as faixas dos valores ajustados (heterocedasticidade).
+```{r, echo=TRUE}
+    bptest(modelo_b)
+```
+  
+  Através da análise do gráfico "Sacale-Location" podemos ver que há um alargamento da dispersão, podendo indicar heterocedasticidade. Através do teste de Breusch-Pagan, p-value=3.18e-05, logo rejeitamos H0 e reforçamos que a variabilidade dos resíduos não é constante em todas as faixas dos valores ajustados.
+    
+    
+### Outliers
+
+```{r, echo = FALSE}
+ 
+  barreira1=quantile(modelo_b$residuals, 0.75)+1.5*IQR(modelo_b$residuals)
+  barreira2=quantile(modelo_b$residuals, 0.75)+3*IQR(modelo_b$residuals)
+  barreira3=quantile(modelo_b$residuals, 0.25)-1.5*IQR(modelo_b$residuals)
+  barreira4=quantile(modelo_b$residuals, 0.25)-3*IQR(modelo_b$residuals)
+  boxplot(residuals(modelo_b),col="blue", horizontal = TRUE)
+
+  abline(v=barreira1, col=2, lty=2)   
+  abline(v=barreira2, col=4, lty=2)
+  abline(v=barreira3, col=2, lty=2)   
+  abline(v=barreira4, col=4, lty=2)
+```
+
+
+```{r, echo = TRUE}
+  summary(rstandard(modelo_b))
+```
+  
+  Através do gráfico boxplot e da função summary dos resíduos, podemos verificar que os resíduos possuem outliers moderados (entre as linhas azul e vermelha) e serveros (para lá da linha azul). Uma vez que os resíduos representam as diferenças entre os valores observados e os valores ajustados, no caso de um modelo com bom ajuste, seria de esperar que as diferenças fossem as menores possíveis.
+  Podemos verificar também que existem leverage points, indicando que há observações que podem estar a influenciar o nosso modelo.
+
+## **Considerações Finais**
+  
+  Após esta análise, apesar de o modelo apresentar um bom ajuste, verificamos que as condições de aplicabilidade não são totalmente cumpridas e isso pode enviesar a interpretação e a confiabilidade das inferências feitas a partir do modelo. Transformações nas variáveis, ajustes no modelo ou até mesmo exploração de outros modelos poderiam ser necessárias.
